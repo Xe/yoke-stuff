@@ -1,0 +1,25 @@
+apiVersion: x.within.website/v1
+kind: App
+metadata:
+  name: stickers
+  annotations:
+    overrides.yoke.cd/flight: https://minio.xeserv.us/mi-static/yoke/x-app/v1.wasm.gz
+
+spec:
+  image: ghcr.io/xe/x/stickers:latest
+  replicas: 1
+  autoUpdate: true
+
+  healthcheck:
+    enabled: false
+    port: 3000
+    path: /
+
+  ingress:
+    enabled: true
+    host: stickers.within.website
+
+  secrets:
+  - name: tigris-creds
+    itemPath: "vaults/lc5zo4zjz3if3mkeuhufjmgmui/items/kvc2jqoyriem75ny4mvm6keguy"
+    environment: true
