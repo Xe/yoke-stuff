@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"reflect"
@@ -15,7 +16,13 @@ import (
 	v1 "github.com/Xe/yoke-stuff/within-website-app/v1"
 )
 
+var (
+	flightURL = flag.String("flight-url", "https://minio.xeserv.us/mi-static/yoke/x-app/v1.wasm.gz", "the URL to the Wasm module to load")
+)
+
 func main() {
+	flag.Parse()
+
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -29,7 +36,7 @@ func run() error {
 		},
 		Spec: v1alpha1.AirwaySpec{
 			WasmURLs: v1alpha1.WasmURLs{
-				Flight: "https://minio.xeserv.us/mi-static/yoke/x-app/v1.wasm.gz",
+				Flight: *flightURL,
 			},
 			Template: apiextv1.CustomResourceDefinitionSpec{
 				Group: "x.within.website",

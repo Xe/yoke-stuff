@@ -2,47 +2,14 @@ apiVersion: x.within.website/v1
 kind: App
 metadata:
   name: nginx
-  annotations:
-    overrides.yoke.cd/flight: https://minio.xeserv.us/mi-static/yoke/x-app/v1.wasm.gz
 
 spec:
   image: nginx
   runAsRoot: true
-  replicas: 1
   port: 80
-  autoUpdate: true
-
-  env:
-  - name: TEST
-    value: "please ignore"
-
-  # resources:
-  #   requests:
-  #     cpu: 100m
-  #     memory: 24Mi
-  #   limits:
-  #     cpu: 250m
-  #     memory: 64Mi
 
   healthcheck:
-    enabled: false
-    port: 3000
-    path: /
-
-  ingress:
-    enabled: false
-    host: stickers.within.website
+    enabled: true
 
   onion:
     enabled: true
-    proofOfWorkDefense: true
-
-  storage:
-    enabled: true
-    path: /var/lib/nginx/html
-    size: 1Gi
-
-  # secrets:
-  # - name: tigris-creds
-  #   itemPath: "vaults/lc5zo4zjz3if3mkeuhufjmgmui/items/kvc2jqoyriem75ny4mvm6keguy"
-  #   environment: true

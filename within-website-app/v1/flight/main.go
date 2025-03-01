@@ -14,6 +14,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -77,6 +78,13 @@ func run() error {
 	if app.Spec.Storage != nil && app.Spec.Storage.Enabled {
 		slog.Info("creating storage for", "app", app.Name)
 		result = append(result, createStorage(app))
+	}
+
+	if app.Spec.Role != nil {
+		slog.Info("creating role for", "app", app.Name)
+		result = append(result, createRole(app))
+		result = append(result, createRoleBinding(app))
+		result = append(result, createServiceAccount(app))
 	}
 
 	// Create our resources (Deployment and Service) and encode them back out via Stdout.
@@ -174,6 +182,10 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 	// }
 
 	if backend.Spec.Healthcheck != nil && backend.Spec.Healthcheck.Enabled {
+		if backend.Spec.Healthcheck.Port == 0 {
+			backend.Spec.Healthcheck.Port = backend.Spec.Port
+		}
+
 		result.Spec.Template.Spec.Containers[0].LivenessProbe = &corev1.Probe{
 			InitialDelaySeconds: 3,
 			PeriodSeconds:       10,
@@ -241,6 +253,10 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 			Name:      "storage",
 			MountPath: backend.Spec.Storage.Path,
 		})
+
+		if backend.Spec.Role != nil && backend.Spec.Role.Enabled {
+			result.Spec.Template.Spec.ServiceAccountName = backend.Name
+		}
 	}
 
 	return result
@@ -439,6 +455,61 @@ func createStorage(app v1.App) *corev1.PersistentVolumeClaim {
 	}
 
 	return result
+}
+
+func createRole(app v1.App) *rbacv1.Role {
+	return &rbacv1.Role{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: rbacv1.SchemeGroupVersion.Identifier(),
+			Kind:       "Role",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+			Labels:    app.Labels,
+		},
+		Rules: app.Spec.Role.Rules,
+	}
+}
+
+func createRoleBinding(app v1.App) *rbacv1.RoleBinding {
+	return &rbacv1.RoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: rbacv1.SchemeGroupVersion.Identifier(),
+			Kind:       "RoleBinding",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+			Labels:    app.Labels,
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      app.Name,
+				Namespace: app.Namespace,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: rbacv1.GroupName,
+			Kind:     "Role",
+			Name:     app.Name,
+		},
+	}
+}
+
+func createServiceAccount(app v1.App) *corev1.ServiceAccount {
+	return &corev1.ServiceAccount{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.Identifier(),
+			Kind:       "ServiceAccount",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+			Labels:    app.Labels,
+		},
+	}
 }
 
 // Our selector for our backend application. Independent from the regular labels passed in the backend spec.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -37,6 +38,7 @@ type AppSpec struct {
 	Ingress     *Ingress     `json:"ingress,omitempty" yaml:"ingress,omitempty"`
 	Onion       *Onion       `json:"onion,omitempty" yaml:"onion,omitempty"`
 	Storage     *Storage     `json:"storage,omitempty" yaml:"storage,omitempty"`
+	Role        *Role        `json:"role,omitempty" yaml:"role,omitempty"`
 
 	Secrets []Secret `json:"secrets,omitempty" yaml:"secrets,omitempty"`
 }
@@ -45,6 +47,17 @@ type Healthcheck struct {
 	Enabled bool   `json:"enabled" yaml:"enabled"`
 	Path    string `json:"path,omitempty" yaml:"path,omitempty"`
 	Port    int    `json:"port,omitempty" yaml:"port,omitempty"`
+}
+
+func (h *Healthcheck) UnmarshalJSON(data []byte) error {
+	type HealthcheckAlt Healthcheck
+	if err := json.Unmarshal(data, (*HealthcheckAlt)(h)); err != nil {
+		return err
+	}
+	if h.Enabled && h.Path == "" {
+		h.Path = "/"
+	}
+	return nil
 }
 
 type Ingress struct {
@@ -134,6 +147,11 @@ func (s *Storage) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type Role struct {
+	Enabled bool                `json:"enabled" yaml:"enabled"`
+	Rules   []rbacv1.PolicyRule `json:"rules,omitempty" yaml:"rules,omitempty"`
+}
+
 // Custom Marshalling Logic so that users do not need to explicity fill out the Kind and ApiVersion.
 func (app App) MarshalJSON() ([]byte, error) {
 	app.Kind = KindApp
@@ -154,6 +172,9 @@ func (app *App) UnmarshalJSON(data []byte) error {
 	}
 	if app.Kind != KindApp {
 		return fmt.Errorf("unexpected kind: expected %s but got %s", KindApp, app.Kind)
+	}
+	if app.Spec.Replicas == 0 {
+		app.Spec.Replicas = 1
 	}
 	return nil
 }
