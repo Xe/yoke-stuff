@@ -5,7 +5,6 @@ metadata:
 
 spec:
   image: ghcr.io/xe/x/stickers:latest
-  replicas: 1
   autoUpdate: true
 
   healthcheck:
