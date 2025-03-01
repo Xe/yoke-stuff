@@ -14,6 +14,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -23,6 +24,7 @@ import (
 	v1 "github.com/Xe/yoke-stuff/within-website-app/v1"
 
 	onepasswordv1 "github.com/1Password/onepassword-operator/api/v1"
+	onionv1alpha2 "github.com/bugfest/tor-controller/apis/tor/v1alpha2"
 )
 
 func main() {
@@ -67,14 +69,19 @@ func run() error {
 		result = append(result, createIngress(app))
 	}
 
+	if app.Spec.Onion != nil && app.Spec.Onion.Enabled {
+		slog.Info("creating onion service for", "app", app.Name)
+		result = append(result, createOnion(app))
+	}
+
+	if app.Spec.Storage != nil && app.Spec.Storage.Enabled {
+		slog.Info("creating storage for", "app", app.Name)
+		result = append(result, createStorage(app))
+	}
+
 	// Create our resources (Deployment and Service) and encode them back out via Stdout.
 	return json.NewEncoder(os.Stdout).Encode(result)
 }
-
-// The following functions create standard kubernetes resources from our backend resource definition.
-// It utilizes the base types found in `k8s.io/api` and is essentially the same as writing the types free-hand via yaml
-// except that we have strong typing, type-checking, and documentation at our finger tips. All this at the reasonable
-// cost of a little more verbosity.
 
 func createDeployment(backend v1.App) *appsv1.Deployment {
 	result := &appsv1.Deployment{
@@ -156,6 +163,16 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 		})
 	}
 
+	if backend.Spec.Env != nil {
+		result.Spec.Template.Spec.Containers[0].Env = append(result.Spec.Template.Spec.Containers[0].Env, backend.Spec.Env...)
+	}
+
+	// if backend.Spec.Resources != nil {
+	// 	for i := range result.Spec.Template.Spec.Containers {
+	// 		result.Spec.Template.Spec.Containers[i].Resources = *backend.Spec.Resources
+	// 	}
+	// }
+
 	if backend.Spec.Healthcheck != nil && backend.Spec.Healthcheck.Enabled {
 		result.Spec.Template.Spec.Containers[0].LivenessProbe = &corev1.Probe{
 			InitialDelaySeconds: 3,
@@ -173,6 +190,13 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 				},
 			},
 		}
+	}
+
+	if backend.Spec.RunAsRoot {
+		for i := range result.Spec.Template.Spec.Containers {
+			result.Spec.Template.Spec.Containers[i].SecurityContext = nil
+		}
+		result.Spec.Template.Spec.SecurityContext = nil
 	}
 
 	for _, sec := range backend.Spec.Secrets {
@@ -201,6 +225,22 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 				MountPath: fmt.Sprintf("/run/secrets/%s", sec.Name),
 			})
 		}
+	}
+
+	if backend.Spec.Storage != nil && backend.Spec.Storage.Enabled {
+		result.Spec.Template.Spec.Volumes = append(result.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: "storage",
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: backend.Name + "-storage",
+				},
+			},
+		})
+
+		result.Spec.Template.Spec.Containers[0].VolumeMounts = append(result.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      "storage",
+			MountPath: backend.Spec.Storage.Path,
+		})
 	}
 
 	return result
@@ -303,6 +343,98 @@ func createOnepasswordSecret(app v1.App, sec v1.Secret) *onepasswordv1.OnePasswo
 		},
 		Spec: onepasswordv1.OnePasswordItemSpec{
 			ItemPath: sec.ItemPath,
+		},
+	}
+
+	return result
+}
+
+func createOnion(app v1.App) *onionv1alpha2.OnionService {
+	result := &onionv1alpha2.OnionService{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: onionv1alpha2.GroupVersion.Identifier(),
+			Kind:       "OnionService",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+			Labels:    app.Labels,
+		},
+		Spec: onionv1alpha2.OnionServiceSpec{
+			Version: int32(3),
+			Rules: []onionv1alpha2.ServiceRule{
+				{
+					Port: networkingv1.ServiceBackendPort{
+						Name:   "http",
+						Number: 80,
+					},
+					Backend: networkingv1.IngressBackend{
+						Service: &networkingv1.IngressServiceBackend{
+							Name: app.Name,
+							Port: networkingv1.ServiceBackendPort{
+								Name:   "http",
+								Number: 80,
+							},
+						},
+					},
+				},
+			},
+			Template: onionv1alpha2.ServicePodTemplate{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{},
+				},
+			},
+		},
+	}
+
+	var cfg strings.Builder
+
+	if app.Spec.Onion.Haproxy {
+		fmt.Fprintln(&cfg, "HiddenServiceExportCircuitID haproxy")
+	}
+
+	if app.Spec.Onion.NonAnonymous {
+		fmt.Fprintln(&cfg, "HiddenServiceNonAnonymousMode 1")
+		fmt.Fprintln(&cfg, "HiddenServiceSingleHopMode 1")
+	}
+
+	if app.Spec.Onion.ProofOfWorkDefense {
+		fmt.Fprintln(&cfg, "HiddenServicePoWDefensesEnabled 1")
+		fmt.Fprintln(&cfg, "HiddenServicePoWQueueRate 1")
+		fmt.Fprintln(&cfg, "HiddenServicePoWQueueBurst 10")
+	}
+
+	result.Spec.ExtraConfig = cfg.String()
+
+	return result
+}
+
+func createStorage(app v1.App) *corev1.PersistentVolumeClaim {
+	size, err := resource.ParseQuantity(app.Spec.Storage.Size)
+	if err != nil {
+		panic(err)
+	}
+
+	result := &corev1.PersistentVolumeClaim{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.Identifier(),
+			Kind:       "PersistentVolumeClaim",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      app.Name + "-storage",
+			Namespace: app.Namespace,
+			Labels:    app.Labels,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce,
+			},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: size,
+				},
+			},
+			StorageClassName: app.Spec.Storage.StorageClass,
 		},
 	}
 
