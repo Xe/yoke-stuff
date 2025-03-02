@@ -23,6 +23,7 @@ import (
 
 	// path to the package where we defined our Backend type.
 	v1 "github.com/Xe/yoke-stuff/within-website-app/v1"
+	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 
 	onepasswordv1 "github.com/1Password/onepassword-operator/api/v1"
 	onionv1alpha2 "github.com/bugfest/tor-controller/apis/tor/v1alpha2"
@@ -64,10 +65,15 @@ func run() error {
 	slog.Info("creating deployment and service for", "app", app.Name)
 	slog.Info("healthcheck", "hc", app.Spec.Healthcheck)
 	slog.Info("app", "ingress", app.Spec.Ingress)
+	result = append(result, createServiceAccount(app))
 
 	if app.Spec.Ingress != nil && app.Spec.Ingress.Enabled {
 		slog.Info("creating ingress for", "app", app.Name)
-		result = append(result, createIngress(app))
+		ing, err := createIngress(app)
+		if err != nil {
+			return fmt.Errorf("failed to create ingress: %w", err)
+		}
+		result = append(result, ing)
 	}
 
 	if app.Spec.Onion != nil && app.Spec.Onion.Enabled {
@@ -84,7 +90,6 @@ func run() error {
 		slog.Info("creating role for", "app", app.Name)
 		result = append(result, createRole(app))
 		result = append(result, createRoleBinding(app))
-		result = append(result, createServiceAccount(app))
 	}
 
 	// Create our resources (Deployment and Service) and encode them back out via Stdout.
@@ -115,6 +120,7 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 					SecurityContext: &corev1.PodSecurityContext{
 						FSGroup: ptr.To[int64](1000),
 					},
+					ServiceAccountName: backend.Name,
 					Containers: []corev1.Container{
 						{
 							Name:            backend.Name,
@@ -253,10 +259,6 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 			Name:      "storage",
 			MountPath: backend.Spec.Storage.Path,
 		})
-
-		if backend.Spec.Role != nil && backend.Spec.Role.Enabled {
-			result.Spec.Template.Spec.ServiceAccountName = backend.Name
-		}
 	}
 
 	return result
@@ -288,7 +290,7 @@ func createService(backend v1.App) *corev1.Service {
 	}
 }
 
-func createIngress(app v1.App) *networkingv1.Ingress {
+func createIngress(app v1.App) (*networkingv1.Ingress, error) {
 	result := &networkingv1.Ingress{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: networkingv1.SchemeGroupVersion.Identifier(),
@@ -336,7 +338,34 @@ func createIngress(app v1.App) *networkingv1.Ingress {
 		},
 	}
 
-	return result
+	if app.Spec.Ingress.EnableCoreRules {
+		result.Annotations["nginx.ingress.kubernetes.io/enable-owasp-core-rules"] = "true"
+		result.Annotations["nginx.ingress.kubernetes.io/enable-modsecurity"] = "true"
+		result.Annotations["nginx.ingress.kubernetes.io/modsecurity-transaction-id"] = "$request_id"
+	}
+
+	var configSnippet strings.Builder
+
+	if app.Spec.Onion != nil && app.Spec.Onion.Enabled {
+		onionSvc, err := k8s.Lookup[onionv1alpha2.OnionService](k8s.ResourceIdentifier{
+			ApiVersion: onionv1alpha2.GroupVersion.Identifier(),
+			Kind:       "OnionService",
+			Name:       app.Name,
+			Namespace:  app.Namespace,
+		})
+		if err == nil {
+			hostname := onionSvc.Status.Hostname
+			if hostname != "" {
+				fmt.Fprintf(&configSnippet, "more_set_headers \"Onion-Location http://%s$request_uri;\"\n", hostname)
+			}
+		}
+	}
+
+	// if configSnippet.Len() > 0 {
+	// 	result.Annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = configSnippet.String()
+	// }
+
+	return result, nil
 }
 
 func mkTLSSecretName(app v1.App) string {

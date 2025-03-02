@@ -13,3 +13,8 @@ spec:
 
   onion:
     enabled: true
+
+  ingress:
+    enabled: true
+    host: nginx.within.website
+    enableCoreRules: true

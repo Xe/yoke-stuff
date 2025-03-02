@@ -61,10 +61,11 @@ func (h *Healthcheck) UnmarshalJSON(data []byte) error {
 }
 
 type Ingress struct {
-	Enabled       bool   `json:"enabled" yaml:"enabled"`
-	Host          string `json:"host" yaml:"host"`
-	ClusterIssuer string `json:"clusterIssuer,omitempty" yaml:"clusterIssuer,omitempty"`
-	ClassName     string `json:"className,omitempty" yaml:"className,omitempty"`
+	Enabled         bool   `json:"enabled" yaml:"enabled"`
+	Host            string `json:"host" yaml:"host"`
+	ClusterIssuer   string `json:"clusterIssuer,omitempty" yaml:"clusterIssuer,omitempty"`
+	ClassName       string `json:"className,omitempty" yaml:"className,omitempty"`
+	EnableCoreRules bool   `json:"enableCoreRules,omitempty" yaml:"enableCoreRules,omitempty"`
 }
 
 func (i *Ingress) UnmarshalJSON(data []byte) error {
