@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/utils/ptr"
 
-	// path to the package where we defined our Backend type.
 	v1 "github.com/Xe/yoke-stuff/within-website-app/v1"
 	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 
@@ -425,6 +424,9 @@ func createOnion(app v1.App) *onionv1alpha2.OnionService {
 				},
 			},
 			Template: onionv1alpha2.ServicePodTemplate{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": app.Name},
+				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{},
 				},

@@ -13,6 +13,7 @@ spec:
 
   onion:
     enabled: true
+    proofOfWorkDefense: true
 
   ingress:
     enabled: true

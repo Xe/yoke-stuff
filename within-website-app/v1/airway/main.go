@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"time"
 
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,8 +35,8 @@ func run() error {
 			Name: "apps.x.within.website",
 		},
 		Spec: v1alpha1.AirwaySpec{
-			ClusterAccess:    true,
-			FixDriftInterval: openapi.Duration(time.Hour),
+			ClusterAccess: true,
+			//FixDriftInterval: openapi.Duration(time.Hour),
 			WasmURLs: v1alpha1.WasmURLs{
 				Flight: *flightURL,
 			},
