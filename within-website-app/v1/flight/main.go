@@ -540,6 +540,7 @@ func createServiceAccount(app v1.App) *corev1.ServiceAccount {
 			Namespace: app.Namespace,
 			Labels:    app.Labels,
 		},
+		AutomountServiceAccountToken: ptr.To(true),
 	}
 }
 

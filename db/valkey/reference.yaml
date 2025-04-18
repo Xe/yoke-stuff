@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postiz-valkey-secret
+  labels:
+    xeiaso.net/role: valkey
+data:
+  ALLOW_EMPTY_PASSWORD: "yes"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postiz-valkey
+  labels:
+    xeiaso.net/role: valkey
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      xeiaso.net/role: valkey
+  template:
+    metadata:
+      labels:
+        xeiaso.net/role: valkey
+    spec:
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: postiz-valkey
+      containers:
+      - name: valkey
+        image: 'docker.io/bitnami/valkey:latest'
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 6379
+        envFrom:
+        - configMapRef:
+            name: postiz-valkey-secret
+        volumeMounts:
+        - name: data
+          mountPath: /data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postiz-valkey
+  labels:
+    xeiaso.net/role: valkey
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+  selector:
+    xeiaso.net/role: valkey
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postiz-valkey
+  labels:
+    xeiaso.net/role: valkey
+spec:
+  resources:
+    requests:
+      storage: 5Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce

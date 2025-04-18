@@ -39,6 +39,7 @@ type AppSpec struct {
 	Onion       *Onion       `json:"onion,omitempty" yaml:"onion,omitempty"`
 	Storage     *Storage     `json:"storage,omitempty" yaml:"storage,omitempty"`
 	Role        *Role        `json:"role,omitempty" yaml:"role,omitempty"`
+	Anubis      *Anubis      `json:"anubis,omitempty" yaml:"anubis,omitempty"`
 
 	Secrets []Secret `json:"secrets,omitempty" yaml:"secrets,omitempty"`
 }
@@ -151,6 +152,14 @@ func (s *Storage) UnmarshalJSON(data []byte) error {
 type Role struct {
 	Enabled bool                `json:"enabled" yaml:"enabled"`
 	Rules   []rbacv1.PolicyRule `json:"rules,omitempty" yaml:"rules,omitempty"`
+}
+
+type Anubis struct {
+	Enabled  bool `json:"enabled" yaml:"enabled"`
+	Settings struct {
+		Difficulty     int  `json:"difficulty"`
+		ServeRobotsTxt bool `json:"serveRobotsTXT"`
+	} `json:"settings,omitempty,omitzero"`
 }
 
 // Custom Marshalling Logic so that users do not need to explicity fill out the Kind and ApiVersion.

@@ -13,11 +13,11 @@ import (
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/openapi"
 
-	v1 "github.com/Xe/yoke-stuff/within-website-app/v1"
+	v1 "github.com/Xe/yoke-stuff/db/valkey/v1"
 )
 
 var (
-	flightURL = flag.String("flight-url", "https://minio.xeserv.us/mi-static/yoke/x-app/v1.wasm.gz", "the URL to the Wasm module to load")
+	flightURL = flag.String("flight-url", "https://minio.xeserv.us/mi-static/yoke/valkey/v1.wasm.gz", "the URL to the Wasm module to load")
 )
 
 func main() {
@@ -32,7 +32,7 @@ func main() {
 func run() error {
 	return json.NewEncoder(os.Stdout).Encode(v1alpha1.Airway{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "apps.x.within.website",
+			Name: "valkeys.db.x.within.website",
 		},
 		Spec: v1alpha1.AirwaySpec{
 			ClusterAccess: true,
@@ -40,11 +40,11 @@ func run() error {
 				Flight: *flightURL,
 			},
 			Template: apiextv1.CustomResourceDefinitionSpec{
-				Group: "x.within.website",
+				Group: "db.x.within.website",
 				Names: apiextv1.CustomResourceDefinitionNames{
-					Plural:   "apps",
-					Singular: "app",
-					Kind:     "App",
+					Plural:   "valkeys",
+					Singular: "valkey",
+					Kind:     "Valkey",
 				},
 				Scope: apiextv1.NamespaceScoped,
 				Versions: []apiextv1.CustomResourceDefinitionVersion{
@@ -53,7 +53,7 @@ func run() error {
 						Served:  true,
 						Storage: true,
 						Schema: &apiextv1.CustomResourceValidation{
-							OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[v1.App]()),
+							OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[v1.Valkey]()),
 						},
 					},
 				},
