@@ -5,8 +5,8 @@ metadata:
 
 spec:
   env:
-  - name: ALLOW_EMPTY_PASSWORD
-    value: "true"
+    - name: ALLOW_EMPTY_PASSWORD
+      value: "true"
   storage:
     enabled: true
     size: 5Gi

@@ -18,6 +18,6 @@ spec:
     enabled: true
 
   secrets:
-  - name: tigris-creds
-    itemPath: "vaults/lc5zo4zjz3if3mkeuhufjmgmui/items/kvc2jqoyriem75ny4mvm6keguy"
-    environment: true
+    - name: tigris-creds
+      itemPath: "vaults/lc5zo4zjz3if3mkeuhufjmgmui/items/kvc2jqoyriem75ny4mvm6keguy"
+      environment: true
