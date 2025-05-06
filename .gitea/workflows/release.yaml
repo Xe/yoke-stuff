@@ -35,6 +35,13 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install yoke
+        run: |
+          wget https://github.com/yokecd/yoke/releases/download/latest/yoke_latest_linux_amd64.gz -O var/yoke.gz
+          gunzip ./var/yoke.gz
+          chmod +x ./var/yoke
+          sudo mv ./var/yoke /usr/local/bin/yoke
+
       - name: set up GPG/SSH key
         run: |
           echo "🔒 Set up SSH key"
