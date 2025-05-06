@@ -1,0 +1,70 @@
+name: Cut Release
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  actions: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: true
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Setup Go caches
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-golang-
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: set up GPG/SSH key
+        run: |
+          echo "🔒 Set up SSH key"
+          mkdir -p ~/.ssh
+          echo "${{ secrets.RELEASE_SSH_KEY }}" | base64 -d > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan git.gitea.svc.alrest.xeserv.us >> ~/.ssh/known_hosts
+
+          echo "🔒 Set up GPG key"
+          echo "${{ secrets.RELEASE_GPG_KEY }}" | base64 -d > ~/.ssh/gpg_privkey
+          chmod 600 ~/.ssh/gpg_privkey
+          gpg --batch --yes --import ~/.ssh/gpg_privkey
+          echo '/usr/bin/gpg --batch --yes --pinentry-mode loopback --passphrase ${{ secrets.RELEASE_GPG_PASSPHRASE }} --no-tty "$@"' > /tmp/gpg-with-passphrase && chmod +x /tmp/gpg-with-passphrase
+          git config --global gpg.program "/tmp/gpg-with-passphrase"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+          git config --global user.signingkey "${{ secrets.RELEASE_GPG_KEY_ID }}"
+        env:
+          RELEASE_GPG_KEY: ${{ secrets.RELEASE_GPG_KEY }}
+          RELEASE_GPG_KEY_ID: ${{ secrets.RELEASE_GPG_KEY_ID }}
+          RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+          RELEASE_SSH_KEY: ${{ secrets.RELEASE_SSH_KEY }}
+
+      - name: release
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_GITEA_TOKEN }}
+          GITEA_URL: https://git.xeserv.us
+          GIT_AUTHOR_NAME: Mimi Yasomi
+          GIT_AUTHOR_EMAIL: mimi@xeserv.us
+          GIT_COMMITTER_NAME: Mimi Yasomi
+          GIT_COMMITTER_EMAIL: mimi@xeserv.us
+          EDITOR: "echo 'Created-by: semantic-release' > $1"
+        run: |
+          npm ci
+          npx semantic-release --debug
+      
+      - run: git cat-file -p HEAD
