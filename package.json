@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "go build -o /dev/null ./... && go test ./...",
-    "prepare": "husky"
+    "prepare": "husky",
+    "build": "npm run build:db:valkey",
+    "build:db:valkey": "cd db/valkey && go tool yeet",
+    "build:x-app": "cd within-website-app && go tool yeet"
   },
   "repository": {
     "type": "git",
@@ -142,6 +145,12 @@
         }
       ],
       "@semantic-release/release-notes-generator",
+      [
+        "@semantic-release/exec",
+        {
+          "verifyReleaseCmd": "go tool yeet --force-git-version=${nextRelease.version}"
+        }
+      ],
       [
         "@saithodev/semantic-release-gitea",
         {
