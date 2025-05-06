@@ -23,9 +23,9 @@ import (
 )
 
 type Config struct {
-	ACME        *ACME          `json:"acme"`
-	ExternalDNS map[string]any `json:"externalDNS"`
-	ExternalIP  IP             `json:"externalIP"`
+	ACME        *ACME               `json:"acme"`
+	ExternalDNS *externaldns.Values `json:"externalDNS"`
+	ExternalIP  IP                  `json:"externalIP"`
 }
 
 type IP struct {
@@ -56,12 +56,6 @@ func (c Config) Valid() error {
 	}
 	if c.ExternalDNS == nil {
 		errs = append(errs, fmt.Errorf("externalDNS is required"))
-	}
-	if c.ExternalDNS["extraArgs"] == nil {
-		errs = append(errs, fmt.Errorf("externalDNS.extraArgs is required"))
-	}
-	if _, ok := c.ExternalDNS["extraArgs"].([]any); !ok {
-		errs = append(errs, fmt.Errorf("externalDNS.extraArgs must be a list of strings, it is %T", c.ExternalDNS["extraArgs"]))
 	}
 	if err := c.ExternalIP.Valid(); err != nil {
 		errs = append(errs, fmt.Errorf("externalIP is invalid: %w", err))
@@ -229,23 +223,16 @@ func run() error {
 		},
 	}})
 
-	extraArgs, ok := cfg.ExternalDNS["extraArgs"].([]any)
-	if !ok {
-		return fmt.Errorf("externalDNS.extraArgs must be a list of something")
-	}
-
 	for _, recordType := range []string{"A", "AAAA", "CNAME", "TXT"} {
-		extraArgs = append(extraArgs, "--managed-record-types="+recordType)
+		cfg.ExternalDNS.ExtraArgs = append(cfg.ExternalDNS.ExtraArgs, "--managed-record-types="+recordType)
 	}
 
 	if cfg.ExternalIP.IPv4 != nil {
-		extraArgs = append(extraArgs, "--default-targets="+*cfg.ExternalIP.IPv4)
+		cfg.ExternalDNS.ExtraArgs = append(cfg.ExternalDNS.ExtraArgs, "--default-targets="+*cfg.ExternalIP.IPv4)
 	}
 	if cfg.ExternalIP.IPv6 != nil {
-		extraArgs = append(extraArgs, "--default-targets="+*cfg.ExternalIP.IPv6)
+		cfg.ExternalDNS.ExtraArgs = append(cfg.ExternalDNS.ExtraArgs, "--default-targets="+*cfg.ExternalIP.IPv6)
 	}
-
-	cfg.ExternalDNS["extraArgs"] = extraArgs
 
 	externalDNS, err := externaldns.RenderChart(flight.Release(), "external-dns", cfg.ExternalDNS)
 	if err != nil {
