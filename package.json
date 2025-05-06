@@ -6,7 +6,7 @@
   "scripts": {
     "test": "go build -o /dev/null ./... && go test ./...",
     "prepare": "husky",
-    "build": "npm run build:db:valkey",
+    "build": "npm run build:db:valkey && npm run build:x-app",
     "build:db:valkey": "cd db/valkey && go tool yeet",
     "build:x-app": "cd within-website-app && go tool yeet"
   },
@@ -148,7 +148,7 @@
       [
         "@semantic-release/exec",
         {
-          "verifyReleaseCmd": "go tool yeet --force-git-version=${nextRelease.version}"
+          "verifyReleaseCmd": "FORCE_GIT_VERSION=${nextRelease.version} npm run build"
         }
       ],
       [
