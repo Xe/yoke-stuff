@@ -290,18 +290,20 @@ func createService(backend v1.App) *corev1.Service {
 }
 
 func createIngress(app v1.App) (*networkingv1.Ingress, error) {
+	annotations := map[string]string{
+		"cert-manager.io/cluster-issuer": app.Spec.Ingress.ClusterIssuer,
+	}
+	maps.Copy(annotations, app.Spec.Ingress.Annotations)
 	result := &networkingv1.Ingress{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: networkingv1.SchemeGroupVersion.Identifier(),
 			Kind:       "Ingress",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      app.Name,
-			Namespace: app.Namespace,
-			Labels:    app.Labels,
-			Annotations: map[string]string{
-				"cert-manager.io/cluster-issuer": app.Spec.Ingress.ClusterIssuer,
-			},
+			Name:        app.Name,
+			Namespace:   app.Namespace,
+			Labels:      app.Labels,
+			Annotations: annotations,
 		},
 		Spec: networkingv1.IngressSpec{
 			IngressClassName: ptr.To(app.Spec.Ingress.ClassName),
