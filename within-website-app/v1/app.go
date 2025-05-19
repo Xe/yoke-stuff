@@ -64,7 +64,7 @@ func (h *Healthcheck) UnmarshalJSON(data []byte) error {
 
 type Ingress struct {
 	Enabled         bool              `json:"enabled" yaml:"enabled"`
-	Kind            string            `json:"kind" yaml:"kind"`
+	Kind            string            `json:"kind,omitempty" yaml:"kind,omitempty"`
 	Host            string            `json:"host" yaml:"host"`
 	ClusterIssuer   string            `json:"clusterIssuer,omitempty" yaml:"clusterIssuer,omitempty"`
 	ClassName       string            `json:"className,omitempty" yaml:"className,omitempty"`
