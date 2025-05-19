@@ -1,3 +1,9 @@
+## [0.3.1](https://git.gitea.svc.alrest.xeserv.us/xe/yoke-stuff/compare/v0.3.0...v0.3.1) (2025-05-19)
+
+### Bug Fixes
+
+- **within-website-app:** image pull secrets are optional ([6af6f49](https://git.gitea.svc.alrest.xeserv.us/xe/yoke-stuff/commit/6af6f4979cdf84e6f95bb2c8cccad285e701970a))
+
 # [0.3.0](https://git.gitea.svc.alrest.xeserv.us/xe/yoke-stuff/compare/v0.2.0...v0.3.0) (2025-05-19)
 
 ### Features
