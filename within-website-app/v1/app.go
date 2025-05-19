@@ -26,7 +26,7 @@ type App struct {
 type AppSpec struct {
 	AutoUpdate       bool            `json:"autoUpdate,omitempty" yaml:"autoUpdate,omitempty"`
 	Image            string          `json:"image" yaml:"image"`
-	ImagePullSecrets []string        `json:"imagePullSecrets" yaml:"imagePullSecrets"`
+	ImagePullSecrets []string        `json:"imagePullSecrets,omitempty" yaml:"imagePullSecrets,omitempty"`
 	LogLevel         string          `json:"logLevel,omitempty" yaml:"logLevel,omitempty"`
 	Replicas         int32           `json:"replicas,omitempty" yaml:"replicas,omitempty"`
 	Port             int             `json:"port,omitempty" yaml:"port,omitempty"`
