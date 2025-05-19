@@ -24,13 +24,14 @@ type App struct {
 
 // Our Backend Specification
 type AppSpec struct {
-	AutoUpdate bool            `json:"autoUpdate,omitempty" yaml:"autoUpdate,omitempty"`
-	Image      string          `json:"image" yaml:"image"`
-	LogLevel   string          `json:"logLevel,omitempty" yaml:"logLevel,omitempty"`
-	Replicas   int32           `json:"replicas,omitempty" yaml:"replicas,omitempty"`
-	Port       int             `json:"port,omitempty" yaml:"port,omitempty"`
-	RunAsRoot  bool            `json:"runAsRoot,omitempty" yaml:"runAsRoot,omitempty"`
-	Env        []corev1.EnvVar `json:"env,omitempty" yaml:"env,omitempty"`
+	AutoUpdate       bool            `json:"autoUpdate,omitempty" yaml:"autoUpdate,omitempty"`
+	Image            string          `json:"image" yaml:"image"`
+	ImagePullSecrets []string        `json:"imagePullSecrets" yaml:"imagePullSecrets"`
+	LogLevel         string          `json:"logLevel,omitempty" yaml:"logLevel,omitempty"`
+	Replicas         int32           `json:"replicas,omitempty" yaml:"replicas,omitempty"`
+	Port             int             `json:"port,omitempty" yaml:"port,omitempty"`
+	RunAsRoot        bool            `json:"runAsRoot,omitempty" yaml:"runAsRoot,omitempty"`
+	Env              []corev1.EnvVar `json:"env,omitempty" yaml:"env,omitempty"`
 
 	// Resources *corev1.ResourceRequirements `json:"resources,omitempty" yaml:"resources,omitempty"`
 
@@ -63,6 +64,7 @@ func (h *Healthcheck) UnmarshalJSON(data []byte) error {
 
 type Ingress struct {
 	Enabled         bool              `json:"enabled" yaml:"enabled"`
+	Kind            string            `json:"kind" yaml:"kind"`
 	Host            string            `json:"host" yaml:"host"`
 	ClusterIssuer   string            `json:"clusterIssuer,omitempty" yaml:"clusterIssuer,omitempty"`
 	ClassName       string            `json:"className,omitempty" yaml:"className,omitempty"`

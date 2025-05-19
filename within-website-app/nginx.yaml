@@ -11,11 +11,6 @@ spec:
   healthcheck:
     enabled: true
 
-  onion:
-    enabled: true
-    proofOfWorkDefense: true
-
   ingress:
     enabled: true
-    host: nginx.ellenjoe.within.lgbt
-    enableCoreRules: true
+    host: nginx.limsa-lominsa.within.lgbt

@@ -186,6 +186,12 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 	// 	}
 	// }
 
+	for _, imagePullSecret := range backend.Spec.ImagePullSecrets {
+		result.Spec.Template.Spec.ImagePullSecrets = append(result.Spec.Template.Spec.ImagePullSecrets, corev1.LocalObjectReference{
+			Name: imagePullSecret,
+		})
+	}
+
 	if backend.Spec.Healthcheck != nil && backend.Spec.Healthcheck.Enabled {
 		if backend.Spec.Healthcheck.Port == 0 {
 			backend.Spec.Healthcheck.Port = backend.Spec.Port
@@ -264,15 +270,16 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 }
 
 func createService(backend v1.App) *corev1.Service {
-	return &corev1.Service{
+	result := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.Identifier(),
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      backend.Name,
-			Namespace: backend.Namespace,
-			Labels:    backend.Labels,
+			Name:        backend.Name,
+			Namespace:   backend.Namespace,
+			Labels:      backend.Labels,
+			Annotations: map[string]string{},
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: selector(backend),
@@ -287,11 +294,20 @@ func createService(backend v1.App) *corev1.Service {
 			},
 		},
 	}
+
+	if backend.Spec.Ingress != nil && backend.Spec.Ingress.Enabled && backend.Spec.Ingress.Kind == "grpc" {
+		maps.Copy(result.Annotations, map[string]string{
+			"traefik.ingress.kubernetes.io/service.serversscheme": "h2c",
+		})
+	}
+
+	return result
 }
 
 func createIngress(app v1.App) (*networkingv1.Ingress, error) {
 	annotations := map[string]string{
-		"cert-manager.io/cluster-issuer": app.Spec.Ingress.ClusterIssuer,
+		"cert-manager.io/cluster-issuer":           app.Spec.Ingress.ClusterIssuer,
+		"nginx.ingress.kubernetes.io/ssl-redirect": "true",
 	}
 	maps.Copy(annotations, app.Spec.Ingress.Annotations)
 	result := &networkingv1.Ingress{
@@ -343,6 +359,12 @@ func createIngress(app v1.App) (*networkingv1.Ingress, error) {
 		result.Annotations["nginx.ingress.kubernetes.io/enable-owasp-core-rules"] = "true"
 		result.Annotations["nginx.ingress.kubernetes.io/enable-modsecurity"] = "true"
 		result.Annotations["nginx.ingress.kubernetes.io/modsecurity-transaction-id"] = "$request_id"
+	}
+
+	if app.Spec.Ingress.Kind == "grpc" {
+		maps.Copy(result.Annotations, map[string]string{
+			"nginx.ingress.kubernetes.io/backend-protocol": "GRPC",
+		})
 	}
 
 	var configSnippet strings.Builder
