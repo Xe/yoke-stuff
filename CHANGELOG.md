@@ -1,3 +1,9 @@
+# [0.3.0](https://git.gitea.svc.alrest.xeserv.us/xe/yoke-stuff/compare/v0.2.0...v0.3.0) (2025-05-19)
+
+### Features
+
+- **within-website-app:** grpc support ([7fde30f](https://git.gitea.svc.alrest.xeserv.us/xe/yoke-stuff/commit/7fde30f4f41a11064a0c21a8dae41e23eea23581))
+
 # [0.2.0](https://git.gitea.svc.alrest.xeserv.us/xe/yoke-stuff/compare/v0.1.1...v0.2.0) (2025-05-18)
 
 ### Features
