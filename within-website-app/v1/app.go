@@ -49,6 +49,7 @@ type Healthcheck struct {
 	Enabled bool   `json:"enabled" yaml:"enabled"`
 	Path    string `json:"path,omitempty" yaml:"path,omitempty"`
 	Port    int    `json:"port,omitempty" yaml:"port,omitempty"`
+	Kind    string `json:"kind,omitempty" yaml:"kind,omitempty"`
 }
 
 func (h *Healthcheck) UnmarshalJSON(data []byte) error {
@@ -58,6 +59,14 @@ func (h *Healthcheck) UnmarshalJSON(data []byte) error {
 	}
 	if h.Enabled && h.Path == "" {
 		h.Path = "/"
+	}
+	switch h.Kind {
+	case "":
+		h.Kind = "http"
+	case "grpc", "http":
+		// all is good
+	default:
+		return fmt.Errorf("Healthcheck: unknown kind %q", h.Kind)
 	}
 	return nil
 }

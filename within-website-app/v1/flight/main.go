@@ -197,21 +197,59 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 			backend.Spec.Healthcheck.Port = backend.Spec.Port
 		}
 
-		result.Spec.Template.Spec.Containers[0].LivenessProbe = &corev1.Probe{
-			InitialDelaySeconds: 3,
-			PeriodSeconds:       10,
-			ProbeHandler: corev1.ProbeHandler{
-				HTTPGet: &corev1.HTTPGetAction{
-					Path: backend.Spec.Healthcheck.Path,
-					Port: intstr.FromInt(backend.Spec.Healthcheck.Port),
-					HTTPHeaders: []corev1.HTTPHeader{
-						{
-							Name:  "X-Kubernetes",
-							Value: "is kinda okay",
+		switch backend.Spec.Healthcheck.Kind {
+		case "http":
+			result.Spec.Template.Spec.Containers[0].LivenessProbe = &corev1.Probe{
+				InitialDelaySeconds: 3,
+				PeriodSeconds:       10,
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: backend.Spec.Healthcheck.Path,
+						Port: intstr.FromInt(backend.Spec.Healthcheck.Port),
+						HTTPHeaders: []corev1.HTTPHeader{
+							{
+								Name:  "X-Kubernetes",
+								Value: "is kinda okay",
+							},
 						},
 					},
 				},
-			},
+			}
+			result.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
+				InitialDelaySeconds: 3,
+				PeriodSeconds:       10,
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: backend.Spec.Healthcheck.Path,
+						Port: intstr.FromInt(backend.Spec.Healthcheck.Port),
+						HTTPHeaders: []corev1.HTTPHeader{
+							{
+								Name:  "X-Kubernetes",
+								Value: "is kinda okay",
+							},
+						},
+					},
+				},
+			}
+		case "grpc":
+			result.Spec.Template.Spec.Containers[0].LivenessProbe = &corev1.Probe{
+				InitialDelaySeconds: 3,
+				PeriodSeconds:       10,
+				ProbeHandler: corev1.ProbeHandler{
+					GRPC: &corev1.GRPCAction{
+						Port: int32(backend.Spec.Healthcheck.Port),
+					},
+				},
+			}
+			result.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
+				InitialDelaySeconds: 0,
+				PeriodSeconds:       10,
+				ProbeHandler: corev1.ProbeHandler{
+					GRPC: &corev1.GRPCAction{
+						Port: int32(backend.Spec.Healthcheck.Port),
+					},
+				},
+			}
 		}
 	}
 
