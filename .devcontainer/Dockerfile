@@ -1,0 +1,1 @@
+FROM ghcr.io/xe/devcontainer-base/pre/go

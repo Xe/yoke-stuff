@@ -3,7 +3,12 @@
 {
   "name": "Go",
   // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-  "image": "ghcr.io/xe/devcontainer-base/pre/go",
+  "build": {
+    "dockerfile": "./Dockerfile",
+    "cacheFrom": [
+      "type=registry,ref=ghcr.io/techarohq/anubis/devcontainer"
+    ]
+  },
   "runArgs": [
     "--network",
     "host"
