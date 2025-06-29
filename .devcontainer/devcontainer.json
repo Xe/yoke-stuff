@@ -4,6 +4,10 @@
   "name": "Go",
   // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
   "image": "ghcr.io/xe/devcontainer-base/pre/go",
+  "runArgs": [
+    "--network",
+    "host"
+  ],
   "features": {
     "ghcr.io/xe/devcontainer-features/yoke:latest": {},
     "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {},

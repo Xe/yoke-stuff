@@ -20,17 +20,9 @@ jobs:
         with:
           node-version: latest
 
-      - name: Log into registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-        with:
-          registry: ghcr.io
-          username: xe
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Pre-build dev container image
         uses: devcontainers/ci@8bf61b26e9c3a98f69cb6ce2f88d24ff59b785c6 # v0.3.1900000417
         with:
-          imageName: ghcr.io/techarohq/yeet/devcontainer
-          cacheFrom: ghcr.io/techarohq/yeet/devcontainer
+          imageName: registry.int.xeserv.us/devcontainer/yoke-stuff
+          cacheFrom: registry.int.xeserv.us/devcontainer/yoke-stuff
           push: always
