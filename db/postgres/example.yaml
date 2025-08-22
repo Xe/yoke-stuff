@@ -1,0 +1,8 @@
+apiVersion: db.x.within.website/v1
+kind: Postgres
+metadata:
+  name: test
+
+spec:
+  storage:
+    size: 5Gi

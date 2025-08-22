@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,7 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/utils/ptr"
 
-	v1 "github.com/Xe/yoke-stuff/db/valkey/v1"
+	v1 "github.com/Xe/yoke-stuff/db/postgres/v1"
+
+	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 
 	onepasswordv1 "github.com/1Password/onepassword-operator/api/v1"
 )
@@ -31,7 +34,7 @@ func main() {
 func run() error {
 	// When this flight is invoked, the atc will pass the JSON representation of the Backend instance to this program via standard input.
 	// We can use the yaml to json decoder so that we can pass yaml definitions manually when testing for convenience.
-	var app v1.Valkey
+	var app v1.Postgres
 	if err := yaml.NewYAMLToJSONDecoder(os.Stdin).Decode(&app); err != nil && err != io.EOF {
 		return err
 	}
@@ -51,11 +54,16 @@ func run() error {
 	result = append(result, createDeployment(app))
 	result = append(result, createService(app))
 
-	slog.Info("creating deployment and service for", "valkey", app.Name)
+	// Create a consumer-facing Secret containing DATABASE_URL so other services
+	// can consume a single well-known secret to reach this Postgres instance.
+	result = append(result, createDatabaseSecret(app))
+
+	slog.Info("creating deployment and service for", "postgres", app.Name)
 	slog.Info("healthcheck", "hc", app.Spec.Healthcheck)
 	result = append(result, createServiceAccount(app))
 
-	if app.Spec.Storage != nil && app.Spec.Storage.Enabled {
+	// Storage is present when Size is set in the spec.
+	if app.Spec.Storage.Size != "" {
 		slog.Info("creating storage for", "app", app.Name)
 		result = append(result, createStorage(app))
 	}
@@ -64,14 +72,14 @@ func run() error {
 	return json.NewEncoder(os.Stdout).Encode(result)
 }
 
-func createDeployment(backend v1.Valkey) *appsv1.Deployment {
+func createDeployment(backend v1.Postgres) *appsv1.Deployment {
 	result := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: appsv1.SchemeGroupVersion.Identifier(),
 			Kind:       "Deployment",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        backend.Name + "-valkey",
+			Name:        backend.Name + "-postgres",
 			Namespace:   backend.Namespace,
 			Labels:      backend.Labels,
 			Annotations: map[string]string{},
@@ -86,28 +94,22 @@ func createDeployment(backend v1.Valkey) *appsv1.Deployment {
 				ObjectMeta: metav1.ObjectMeta{Labels: backend.Labels},
 				Spec: corev1.PodSpec{
 					SecurityContext: &corev1.PodSecurityContext{
-						FSGroup: ptr.To[int64](1000),
+						FSGroup: ptr.To[int64](70),
 					},
 					Volumes: []corev1.Volume{
 						{
-							Name: "tmp",
-						},
-						{
-							Name: "logs",
-						},
-						{
-							Name: "etc",
+							Name: "data",
 						},
 					},
 					ServiceAccountName: backend.Name,
 					Containers: []corev1.Container{
 						{
-							Name:            backend.Name,
-							Image:           "docker.io/bitnami/valkey:latest",
+							Name:            "postgres",
+							Image:           "docker.io/postgres:16",
 							ImagePullPolicy: corev1.PullAlways,
 							SecurityContext: &corev1.SecurityContext{
-								RunAsUser:                ptr.To[int64](1000),
-								RunAsGroup:               ptr.To[int64](1000),
+								RunAsUser:                ptr.To[int64](70),
+								RunAsGroup:               ptr.To[int64](70),
 								RunAsNonRoot:             ptr.To(true),
 								AllowPrivilegeEscalation: ptr.To(false),
 								Capabilities: &corev1.Capabilities{
@@ -121,21 +123,23 @@ func createDeployment(backend v1.Valkey) *appsv1.Deployment {
 								{
 									Name:          backend.Name,
 									Protocol:      corev1.ProtocolTCP,
-									ContainerPort: int32(6379),
+									ContainerPort: int32(5432),
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "tmp",
-									MountPath: "/opt/bitnami/valkey/tmp",
+									Name:      "data",
+									MountPath: "/var/lib/postgresql/data",
+								},
+							},
+							Env: []corev1.EnvVar{
+								{
+									Name:  "POSTGRES_USER",
+									Value: "postgres",
 								},
 								{
-									Name:      "logs",
-									MountPath: "/opt/bitnami/valkey/logs",
-								},
-								{
-									Name:      "etc",
-									MountPath: "/opt/bitnami/valkey/etc",
+									Name:  "PGDATA",
+									Value: "/var/lib/postgresql/data/pgdata",
 								},
 							},
 						},
@@ -149,13 +153,48 @@ func createDeployment(backend v1.Valkey) *appsv1.Deployment {
 		result.Spec.Template.Spec.Containers[0].Env = append(result.Spec.Template.Spec.Containers[0].Env, backend.Spec.Env...)
 	}
 
+	// Expose generated DB credentials from the conventionally-named secret
+	secretName := backend.Name + "-database"
+	result.Spec.Template.Spec.Containers[0].Env = append(result.Spec.Template.Spec.Containers[0].Env,
+		corev1.EnvVar{
+			Name: "POSTGRES_PASSWORD",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+					Key:                  "POSTGRES_PASSWORD",
+					Optional:             ptr.To(false),
+				},
+			},
+		},
+		corev1.EnvVar{
+			Name: "DATABASE_URL",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+					Key:                  "DATABASE_URL",
+					Optional:             ptr.To(false),
+				},
+			},
+		},
+	)
+
 	if backend.Spec.Healthcheck {
 		result.Spec.Template.Spec.Containers[0].LivenessProbe = &corev1.Probe{
-			InitialDelaySeconds: 3,
+			InitialDelaySeconds: 30,
 			PeriodSeconds:       10,
 			ProbeHandler: corev1.ProbeHandler{
 				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt(6379),
+					Port: intstr.FromInt(5432),
+				},
+			},
+		}
+
+		result.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
+			InitialDelaySeconds: 5,
+			PeriodSeconds:       10,
+			ProbeHandler: corev1.ProbeHandler{
+				Exec: &corev1.ExecAction{
+					Command: []string{"pg_isready", "-U", "postgres"},
 				},
 			},
 		}
@@ -171,33 +210,41 @@ func createDeployment(backend v1.Valkey) *appsv1.Deployment {
 		})
 	}
 
-	if backend.Spec.Storage != nil && backend.Spec.Storage.Enabled {
+	// Back the existing "data" volume with the PVC so the container's
+	// existing volumeMount (name: "data", mountPath: /var/lib/postgresql/data)
+	// is satisfied by the PersistentVolumeClaim. This avoids creating a
+	// second VolumeMount with the same mountPath which would cause a
+	// duplicate-mountPath error when applying the Deployment.
+	if len(result.Spec.Template.Spec.Volumes) > 0 && result.Spec.Template.Spec.Volumes[0].Name == "data" {
+		result.Spec.Template.Spec.Volumes[0].VolumeSource = corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: backend.Name + "-postgres-storage",
+			},
+		}
+	} else {
+		// Fallback: append a data volume if the initial one isn't present.
 		result.Spec.Template.Spec.Volumes = append(result.Spec.Template.Spec.Volumes, corev1.Volume{
-			Name: "storage",
+			Name: "data",
 			VolumeSource: corev1.VolumeSource{
 				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: backend.Name + "-valkey-storage",
+					ClaimName: backend.Name + "-postgres-storage",
 				},
 			},
 		})
-
-		result.Spec.Template.Spec.Containers[0].VolumeMounts = append(result.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
-			Name:      "storage",
-			MountPath: "/bitnami/valkey/data",
-		})
 	}
+	// Do not append another VolumeMount; the container already mounts "data".
 
 	return result
 }
 
-func createService(backend v1.Valkey) *corev1.Service {
+func createService(backend v1.Postgres) *corev1.Service {
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.Identifier(),
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      backend.Name + "-valkey",
+			Name:      backend.Name + "-postgres",
 			Namespace: backend.Namespace,
 			Labels:    backend.Labels,
 		},
@@ -207,17 +254,17 @@ func createService(backend v1.Valkey) *corev1.Service {
 			Ports: []corev1.ServicePort{
 				{
 					Protocol:   corev1.ProtocolTCP,
-					Port:       6379,
-					TargetPort: intstr.FromInt(6379),
-					Name:       "valkey",
+					Port:       5432,
+					TargetPort: intstr.FromInt(5432),
+					Name:       "postgres",
 				},
 			},
 		},
 	}
 }
 
-func createOnepasswordSecret(app v1.Valkey, sec v1.Secret) *onepasswordv1.OnePasswordItem {
-	genName := fmt.Sprintf("%s-valkey-%s", app.Name, sec.Name)
+func createOnepasswordSecret(app v1.Postgres, sec v1.Secret) *onepasswordv1.OnePasswordItem {
+	genName := fmt.Sprintf("%s-postgres-%s", app.Name, sec.Name)
 
 	result := &onepasswordv1.OnePasswordItem{
 		TypeMeta: metav1.TypeMeta{
@@ -238,7 +285,64 @@ func createOnepasswordSecret(app v1.Valkey, sec v1.Secret) *onepasswordv1.OnePas
 	return result
 }
 
-func createStorage(app v1.Valkey) *corev1.PersistentVolumeClaim {
+func createDatabaseSecret(app v1.Postgres) *corev1.Secret {
+	// Name the secret <app.Name>-database so consumers can find it by convention.
+	name := app.Name + "-database"
+
+	// Host the service DNS for cluster-internal access. Use the service created above
+	// which is named <app.Name>-postgres in the same namespace.
+	svcFQDN := fmt.Sprintf("%s.%s.svc", app.Name+"-postgres", app.Namespace)
+
+	// We'll resolve/generate the password below and then compose a proper DATABASE_URL
+	// that embeds the generated or existing password.
+	dbURL := ""
+
+	// Attempt to look up an existing secret and reuse its password if present.
+	secretName := app.Name + "-database"
+	existing, err := k8s.Lookup[corev1.Secret](k8s.ResourceIdentifier{
+		ApiVersion: "v1",
+		Kind:       "Secret",
+		Name:       secretName,
+		Namespace:  app.Namespace,
+	})
+	if err != nil && !k8s.IsErrNotFound(err) {
+		// lookup failed in a way other than not-found; panic because the flight cannot continue reliably.
+		panic(fmt.Errorf("failed to lookup secret: %v", err))
+	}
+
+	password := func() string {
+		if existing != nil {
+			if b, ok := existing.Data["POSTGRES_PASSWORD"]; ok {
+				return string(b)
+			}
+		}
+		return RandomString()
+	}()
+
+	// Compose final DATABASE_URL using the resolved password.
+	dbURL = fmt.Sprintf("postgres://%s:%s@%s:%d/%s", "postgres", password, svcFQDN, 5432, app.Name)
+
+	result := &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.Identifier(),
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: app.Namespace,
+			Labels:    app.Labels,
+		},
+		StringData: map[string]string{
+			"DATABASE_URL":      dbURL,
+			"POSTGRES_PASSWORD": password,
+		},
+		Type: corev1.SecretTypeOpaque,
+	}
+
+	return result
+}
+
+func createStorage(app v1.Postgres) *corev1.PersistentVolumeClaim {
 	size, err := resource.ParseQuantity(app.Spec.Storage.Size)
 	if err != nil {
 		panic(err)
@@ -250,7 +354,7 @@ func createStorage(app v1.Valkey) *corev1.PersistentVolumeClaim {
 			Kind:       "PersistentVolumeClaim",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      app.Name + "-valkey-storage",
+			Name:      app.Name + "-postgres-storage",
 			Namespace: app.Namespace,
 			Labels:    app.Labels,
 		},
@@ -271,7 +375,7 @@ func createStorage(app v1.Valkey) *corev1.PersistentVolumeClaim {
 	return result
 }
 
-func createServiceAccount(app v1.Valkey) *corev1.ServiceAccount {
+func createServiceAccount(app v1.Postgres) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.Identifier(),
@@ -287,6 +391,12 @@ func createServiceAccount(app v1.Valkey) *corev1.ServiceAccount {
 }
 
 // Our selector for our backend application. Independent from the regular labels passed in the backend spec.
-func selector(backend v1.Valkey) map[string]string {
+func selector(backend v1.Postgres) map[string]string {
 	return map[string]string{"app.kubernetes.io/name": backend.Name}
+}
+
+func RandomString() string {
+	buf := make([]byte, 16)
+	rand.Read(buf)
+	return fmt.Sprintf("%x", buf)
 }

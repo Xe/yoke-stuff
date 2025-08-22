@@ -156,7 +156,7 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 							},
 							Ports: []corev1.ContainerPort{
 								{
-									Name:          backend.Name,
+									Name:          "http",
 									Protocol:      corev1.ProtocolTCP,
 									ContainerPort: int32(backend.Spec.Port),
 								},
