@@ -66,6 +66,11 @@ func run() error {
 		result = append(result, configmaps...)
 	}
 
+	var pvcs []any
+	for _, pvc := range app.Spec.Volumes {
+		pvcs = append(pvcs, createPVC(app, pvc))
+	}
+
 	result = append(result, createDeployment(app))
 	result = append(result, createService(app))
 
@@ -312,6 +317,22 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 		})
 	}
 
+	for _, pvc := range backend.Spec.Volumes {
+		result.Spec.Template.Spec.Volumes = append(result.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: "pvc-" + pvc.Name,
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: backend.Name + "-" + pvc.Name,
+				},
+			},
+		})
+
+		result.Spec.Template.Spec.Containers[0].VolumeMounts = append(result.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      "pvc-" + pvc.Name,
+			MountPath: pvc.Path,
+		})
+	}
+
 	for _, cm := range backend.Spec.ConfigMaps {
 		result.Spec.Template.Spec.Volumes = append(result.Spec.Template.Spec.Volumes, corev1.Volume{
 			Name: "cm-" + cm.Name,
@@ -540,6 +561,38 @@ func createOnion(app v1.App) *onionv1alpha2.OnionService {
 	}
 
 	result.Spec.ExtraConfig = cfg.String()
+
+	return result
+}
+
+func createPVC(app v1.App, pvc v1.Volume) *corev1.PersistentVolumeClaim {
+	size, err := resource.ParseQuantity(pvc.Size)
+	if err != nil {
+		panic(err)
+	}
+
+	result := &corev1.PersistentVolumeClaim{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.Identifier(),
+			Kind:       "PersistentVolumeClaim",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      app.Name + "-" + pvc.Name,
+			Namespace: app.Namespace,
+			Labels:    app.Labels,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce,
+			},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: size,
+				},
+			},
+			StorageClassName: app.Spec.Storage.StorageClass,
+		},
+	}
 
 	return result
 }

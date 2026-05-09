@@ -42,8 +42,10 @@ type AppSpec struct {
 	Role        *Role        `json:"role,omitempty" yaml:"role,omitempty"`
 	Anubis      *Anubis      `json:"anubis,omitempty" yaml:"anubis,omitempty"`
 
+	Volumes []Volume `json:"volumes,omitempty" yaml:"volumes,omitempty"`
+
 	Secrets    []Secret    `json:"secrets,omitempty" yaml:"secrets,omitempty"`
-	ConfigMaps []ConfigMap `json:"configMaps,omitempty yaml:"configmaps,omitempty"`
+	ConfigMaps []ConfigMap `json:"configMaps,omitempty" yaml:"configmaps,omitempty"`
 }
 
 type Healthcheck struct {
@@ -132,6 +134,36 @@ func (o *Onion) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, (*OnionAlt)(o)); err != nil {
 		return err
 	}
+	return nil
+}
+
+type Volume struct {
+	Name         string  `json:"name" yaml:"name"`
+	Path         string  `json:"path" yaml:"path"`
+	Size         string  `json:"size" yaml:"size"`
+	StorageClass *string `json:"storageClass,omitempty" yaml:"storageClass,omitempty"`
+}
+
+func (v *Volume) UnmarshalJSON(data []byte) error {
+	type VolumeAlt Volume
+	if err := json.Unmarshal(data, (*VolumeAlt)(v)); err != nil {
+		return err
+	}
+	if v.Name == "" {
+		return fmt.Errorf("name is required for volumes")
+	}
+	if v.Path == "" {
+		return fmt.Errorf("path is required for volumes")
+	}
+	if v.Size == "" {
+		return fmt.Errorf("size is required for volumes")
+	}
+
+	_, err := resource.ParseQuantity(v.Size)
+	if err != nil {
+		return fmt.Errorf("invalid size: %v", err)
+	}
+
 	return nil
 }
 
