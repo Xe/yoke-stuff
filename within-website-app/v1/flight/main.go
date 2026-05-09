@@ -58,6 +58,14 @@ func run() error {
 		result = append(result, createOnepasswordSecret(app, sec))
 	}
 
+	var configmaps []any
+	for _, cm := range app.Spec.ConfigMaps {
+		configmaps = append(configmaps, createConfigMap(app, cm))
+	}
+	if len(configmaps) != 0 {
+		result = append(result, configmaps...)
+	}
+
 	result = append(result, createDeployment(app))
 	result = append(result, createService(app))
 
@@ -301,6 +309,24 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 		result.Spec.Template.Spec.Containers[0].VolumeMounts = append(result.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
 			Name:      "storage",
 			MountPath: backend.Spec.Storage.Path,
+		})
+	}
+
+	for _, cm := range backend.Spec.ConfigMaps {
+		result.Spec.Template.Spec.Volumes = append(result.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: "cm-" + cm.Name,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: backend.Name + "-" + cm.Name,
+					},
+				},
+			},
+		})
+
+		result.Spec.Template.Spec.Containers[0].VolumeMounts = append(result.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      "cm-" + cm.Name,
+			MountPath: cm.Folder,
 		})
 	}
 
@@ -603,6 +629,21 @@ func createServiceAccount(app v1.App) *corev1.ServiceAccount {
 			Labels:    app.Labels,
 		},
 		AutomountServiceAccountToken: ptr.To(true),
+	}
+}
+
+func createConfigMap(app v1.App, cm v1.ConfigMap) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.Identifier(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      app.Name + "-" + cm.Name,
+			Namespace: app.Namespace,
+			Labels:    app.Labels,
+		},
+		Data: cm.Data,
 	}
 }
 

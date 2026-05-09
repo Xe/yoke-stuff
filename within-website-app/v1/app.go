@@ -42,7 +42,8 @@ type AppSpec struct {
 	Role        *Role        `json:"role,omitempty" yaml:"role,omitempty"`
 	Anubis      *Anubis      `json:"anubis,omitempty" yaml:"anubis,omitempty"`
 
-	Secrets []Secret `json:"secrets,omitempty" yaml:"secrets,omitempty"`
+	Secrets    []Secret    `json:"secrets,omitempty" yaml:"secrets,omitempty"`
+	ConfigMaps []ConfigMap `json:"configMaps,omitempty yaml:"configmaps,omitempty"`
 }
 
 type Healthcheck struct {
@@ -172,6 +173,12 @@ type Anubis struct {
 		Difficulty     int  `json:"difficulty"`
 		ServeRobotsTxt bool `json:"serveRobotsTXT"`
 	} `json:"settings,omitempty,omitzero"`
+}
+
+type ConfigMap struct {
+	Name   string            `json:"name" yaml:"name"`
+	Data   map[string]string `json:"data" yaml:"data"`
+	Folder string            `json:"folder" yaml:"folder"`
 }
 
 // Custom Marshalling Logic so that users do not need to explicity fill out the Kind and ApiVersion.
