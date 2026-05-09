@@ -695,7 +695,7 @@ func createConfigMap(app v1.App, cm v1.ConfigMap) *corev1.ConfigMap {
 			Kind:       "ConfigMap",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      app.Name + cm.GenName(),
+			Name:      app.Name + "-" + cm.GenName(),
 			Namespace: app.Namespace,
 			Labels:    app.Labels,
 		},
