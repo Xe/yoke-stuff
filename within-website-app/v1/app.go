@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 
@@ -211,6 +212,20 @@ type ConfigMap struct {
 	Name   string            `json:"name" yaml:"name"`
 	Data   map[string]string `json:"data" yaml:"data"`
 	Folder string            `json:"folder" yaml:"folder"`
+}
+
+func (cm ConfigMap) GenName() string {
+	data, err := json.Marshal(cm.Data)
+	if err != nil {
+		panic(err)
+	}
+	return cm.Name + "-" + hash(cm.Name, string(data))[0:16]
+}
+
+func hash(name, inp string) string {
+	h := sha256.New()
+	fmt.Fprintln(h, APIVersion, KindApp, name, inp)
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 // Custom Marshalling Logic so that users do not need to explicity fill out the Kind and ApiVersion.

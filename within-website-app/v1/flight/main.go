@@ -70,6 +70,9 @@ func run() error {
 	for _, pvc := range app.Spec.Volumes {
 		pvcs = append(pvcs, createPVC(app, pvc))
 	}
+	if len(pvcs) != 0 {
+		result = append(result, pvcs...)
+	}
 
 	result = append(result, createDeployment(app))
 	result = append(result, createService(app))
@@ -339,7 +342,7 @@ func createDeployment(backend v1.App) *appsv1.Deployment {
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: backend.Name + "-" + cm.Name,
+						Name: backend.Name + "-" + cm.GenName(),
 					},
 				},
 			},
@@ -692,7 +695,7 @@ func createConfigMap(app v1.App, cm v1.ConfigMap) *corev1.ConfigMap {
 			Kind:       "ConfigMap",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      app.Name + "-" + cm.Name,
+			Name:      app.Name + cm.GenName(),
 			Namespace: app.Namespace,
 			Labels:    app.Labels,
 		},
