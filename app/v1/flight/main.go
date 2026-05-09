@@ -21,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/utils/ptr"
 
-	v1 "github.com/Xe/yoke-stuff/within-website-app/v1"
+	v1 "github.com/Xe/yoke-stuff/app/v1"
 	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 
 	onepasswordv1 "github.com/1Password/onepassword-operator/api/v1"

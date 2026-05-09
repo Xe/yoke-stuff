@@ -13,7 +13,7 @@ import (
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/openapi"
 
-	v1 "github.com/Xe/yoke-stuff/within-website-app/v1"
+	v1 "github.com/Xe/yoke-stuff/app/v1"
 )
 
 var (
