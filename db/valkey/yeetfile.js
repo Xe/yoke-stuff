@@ -1,8 +1,8 @@
 $`GOOS=wasip1 GOARCH=wasm go build -o valkey.wasm ./v1/flight`;
 $`GOOS=wasip1 GOARCH=wasm go build -o valkey-airway.wasm ./v1/airway`;
 
-$`yoke stow ./valkey.wasm oci://registry.int.xeserv.us/x-app/db/valkey/flight:${git.tag()}`;
-$`yoke stow ./valkey-airway.wasm oci://registry.int.xeserv.us/x-app/db/valkey/airway:${git.tag()}`;
+$`yoke stow ./valkey.wasm oci://registry.int.xeserv.us/crds/db/valkey/flight:${git.tag()}`;
+$`yoke stow ./valkey-airway.wasm oci://registry.int.xeserv.us/crds/db/valkey/airway:${git.tag()}`;
 
 $`gzip -f9 *.wasm`;
 
